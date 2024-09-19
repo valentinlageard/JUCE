@@ -101,9 +101,9 @@ else()
         # unset(ENV{WINDMC})
         # unset(ENV{WINDRES})
 
-        if(DEFINED ENV{PATH_ORIG})
-            set(ENV{PATH} "$ENV{PATH_ORIG}")
-        endif()
+        #if(DEFINED ENV{PATH_ORIG})
+        #    set(ENV{PATH} "$ENV{PATH_ORIG}")
+        #endif()
     endif()
 
     # Generator platform is only supported on specific generators
