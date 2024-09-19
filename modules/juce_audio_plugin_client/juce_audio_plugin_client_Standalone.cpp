@@ -1,24 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2022 - Raw Material Software Limited
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
-   Agreement and JUCE Privacy Policy.
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-7-licence
-   Privacy Policy: www.juce.com/juce-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -36,7 +45,7 @@
 
 #include <juce_audio_plugin_client/detail/juce_IncludeSystemHeaders.h>
 #include <juce_audio_plugin_client/detail/juce_IncludeModuleHeaders.h>
-#include <juce_audio_plugin_client/detail/juce_WindowsHooks.h>
+#include <juce_gui_basics/native/juce_WindowsHooks_windows.h>
 #include <juce_audio_plugin_client/detail/juce_PluginUtilities.h>
 
 #include <juce_audio_devices/juce_audio_devices.h>
@@ -54,14 +63,14 @@ namespace juce
 {
 
 //==============================================================================
-class StandaloneFilterApp  : public JUCEApplication
+class StandaloneFilterApp final : public JUCEApplication
 {
 public:
     StandaloneFilterApp()
     {
         PropertiesFile::Options options;
 
-        options.applicationName     = getApplicationName();
+        options.applicationName     = appName;
         options.filenameSuffix      = ".settings";
         options.osxLibrarySubFolder = "Application Support";
        #if JUCE_LINUX || JUCE_BSD
@@ -73,7 +82,7 @@ public:
         appProperties.setStorageParameters (options);
     }
 
-    const String getApplicationName() override              { return CharPointer_UTF8 (JucePlugin_Name); }
+    const String getApplicationName() override              { return appName; }
     const String getApplicationVersion() override           { return JucePlugin_VersionString; }
     bool moreThanOneInstanceAllowed() override              { return true; }
     void anotherInstanceStarted (const String&) override    {}
@@ -120,7 +129,7 @@ public:
     //==============================================================================
     void systemRequestedQuit() override
     {
-        if (mainWindow.get() != nullptr)
+        if (mainWindow != nullptr)
             mainWindow->pluginHolder->savePluginState();
 
         if (ModalComponentManager::getInstance()->cancelAllModalComponents())
@@ -140,6 +149,9 @@ public:
 protected:
     ApplicationProperties appProperties;
     std::unique_ptr<StandaloneFilterWindow> mainWindow;
+
+private:
+    const String appName { CharPointer_UTF8 (JucePlugin_Name) };
 };
 
 } // namespace juce
@@ -186,7 +198,7 @@ JUCE_END_IGNORE_WARNINGS_GCC_LIKE
  #endif
 
 #else
- JUCE_CREATE_APPLICATION_DEFINE(juce::StandaloneFilterApp)
+ JUCE_CREATE_APPLICATION_DEFINE (juce::StandaloneFilterApp)
 #endif
 
 #if ! JUCE_USE_CUSTOM_PLUGIN_STANDALONE_ENTRYPOINT

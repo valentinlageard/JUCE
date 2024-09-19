@@ -1,24 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2022 - Raw Material Software Limited
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
-   Agreement and JUCE Privacy Policy.
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-7-licence
-   Privacy Policy: www.juce.com/juce-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -47,9 +56,9 @@ JUCE_BEGIN_NO_SANITIZE ("vptr")
 #include <juce_audio_plugin_client/detail/juce_CheckSettingMacros.h>
 #include <juce_audio_plugin_client/detail/juce_IncludeSystemHeaders.h>
 #include <juce_audio_plugin_client/detail/juce_PluginUtilities.h>
-#include <juce_audio_plugin_client/detail/juce_WindowsHooks.h>
 #include <juce_audio_plugin_client/detail/juce_LinuxMessageThread.h>
 #include <juce_audio_plugin_client/detail/juce_VSTWindowUtilities.h>
+#include <juce_gui_basics/native/juce_WindowsHooks_windows.h>
 
 #include <juce_audio_processors/format_types/juce_LegacyAudioParameter.cpp>
 #include <juce_audio_processors/utilities/juce_FlagCache.h>
@@ -90,7 +99,7 @@ JUCE_BEGIN_NO_SANITIZE ("vptr")
 
 //==============================================================================
 #if JucePlugin_Enable_ARA
- JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE("-Wpragma-pack")
+ JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wpragma-pack")
  #include <ARA_API/ARAVST3.h>
  JUCE_END_IGNORE_WARNINGS_GCC_LIKE
 
@@ -98,9 +107,9 @@ JUCE_BEGIN_NO_SANITIZE ("vptr")
   #error "Unsupported ARA version - only ARA version 2 and onward are supported by the current implementation"
  #endif
 
- DEF_CLASS_IID(ARA::IPlugInEntryPoint)
- DEF_CLASS_IID(ARA::IPlugInEntryPoint2)
- DEF_CLASS_IID(ARA::IMainFactory)
+ DEF_CLASS_IID (ARA::IPlugInEntryPoint)
+ DEF_CLASS_IID (ARA::IPlugInEntryPoint2)
+ DEF_CLASS_IID (ARA::IMainFactory)
 #endif
 
 namespace juce
@@ -371,7 +380,7 @@ static QueryInterfaceResult queryAdditionalInterfaces (AudioProcessor* processor
 
     void* obj = nullptr;
 
-    if (auto* extensions = dynamic_cast<VST3ClientExtensions*> (processor))
+    if (auto* extensions = processor->getVST3ClientExtensions())
     {
         const auto result = (extensions->*member) (targetIID, &obj);
         return { result, obj };
@@ -401,7 +410,7 @@ static tresult extractResult (const QueryInterfaceResult& userInterface,
 }
 
 //==============================================================================
-class JuceAudioProcessor   : public Vst::IUnitInfo
+class JuceAudioProcessor final : public Vst::IUnitInfo
 {
 public:
     explicit JuceAudioProcessor (AudioProcessor* source) noexcept
@@ -409,8 +418,6 @@ public:
     {
         setupParameters();
     }
-
-    virtual ~JuceAudioProcessor() = default;
 
     AudioProcessor* get() const noexcept      { return audioProcessor.get(); }
 
@@ -724,15 +731,15 @@ static void setValueAndNotifyIfChanged (AudioProcessorParameter& param, float ne
 }
 
 //==============================================================================
-class JuceVST3EditController : public Vst::EditController,
-                               public Vst::IMidiMapping,
-                               public Vst::IUnitInfo,
-                               public Vst::ChannelContext::IInfoListener,
-                              #if JucePlugin_Enable_ARA
-                               public Presonus::IPlugInViewEmbedding,
-                              #endif
-                               public AudioProcessorListener,
-                               private ComponentRestarter::Listener
+class JuceVST3EditController final : public Vst::EditController,
+                                     public Vst::IMidiMapping,
+                                     public Vst::IUnitInfo,
+                                     public Vst::ChannelContext::IInfoListener,
+                                    #if JucePlugin_Enable_ARA
+                                     public Presonus::IPlugInViewEmbedding,
+                                    #endif
+                                     public AudioProcessorListener,
+                                     private ComponentRestarter::Listener
 {
 public:
     explicit JuceVST3EditController (Vst::IHostApplication* host)
@@ -791,7 +798,7 @@ public:
     }
 
     //==============================================================================
-    struct Param  : public Vst::Parameter
+    struct Param final : public Vst::Parameter
     {
         Param (JuceVST3EditController& editController, AudioProcessorParameter& p,
                Vst::ParamID vstParamID, Vst::UnitID vstUnitID,
@@ -802,19 +809,6 @@ public:
             info.unitId = vstUnitID;
 
             updateParameterInfo();
-
-            info.stepCount = (Steinberg::int32) 0;
-
-           #if ! JUCE_FORCE_LEGACY_PARAMETER_AUTOMATION_TYPE
-            if (param.isDiscrete())
-           #endif
-            {
-                const int numSteps = param.getNumSteps();
-                info.stepCount = (Steinberg::int32) (numSteps > 0 && numSteps < 0x7fffffff ? numSteps - 1 : 0);
-            }
-
-            info.defaultNormalizedValue = param.getDefaultValue();
-            jassert (info.defaultNormalizedValue >= 0 && info.defaultNormalizedValue <= 1.0f);
 
             // Is this a meter?
             if ((((unsigned int) param.getCategory() & 0xffff0000) >> 16) == 2)
@@ -839,9 +833,29 @@ public:
                 return true;
             };
 
-            auto anyUpdated = updateParamIfChanged (info.title,      param.getName (128));
-            anyUpdated     |= updateParamIfChanged (info.shortTitle, param.getName (8));
-            anyUpdated     |= updateParamIfChanged (info.units,      param.getLabel());
+            const auto updateParamIfScalarChanged = [] (auto& toChange, const auto newValue)
+            {
+                return ! exactlyEqual (std::exchange (toChange, newValue), newValue);
+            };
+
+            const auto newStepCount = [&]
+            {
+               #if ! JUCE_FORCE_LEGACY_PARAMETER_AUTOMATION_TYPE
+                if (! param.isDiscrete())
+                    return 0;
+               #endif
+
+                const auto numSteps = param.getNumSteps();
+                return (Steinberg::int32) (0 < numSteps && numSteps < 0x7fffffff ? numSteps - 1 : 0);
+            }();
+
+            auto anyUpdated = updateParamIfChanged (info.title, param.getName (128));
+            anyUpdated |= updateParamIfChanged (info.shortTitle, param.getName (8));
+            anyUpdated |= updateParamIfChanged (info.units, param.getLabel());
+            anyUpdated |= updateParamIfScalarChanged (info.stepCount, newStepCount);
+            anyUpdated |= updateParamIfScalarChanged (info.defaultNormalizedValue, (double) param.getDefaultValue());
+
+            jassert (0 <= info.defaultNormalizedValue && info.defaultNormalizedValue <= 1.0);
 
             return anyUpdated;
         }
@@ -903,7 +917,7 @@ public:
     };
 
     //==============================================================================
-    struct ProgramChangeParameter  : public Vst::Parameter
+    struct ProgramChangeParameter final : public Vst::Parameter
     {
         ProgramChangeParameter (AudioProcessor& p, Vst::ParamID vstParamID)
             : owner (p)
@@ -1033,7 +1047,7 @@ public:
    #endif
 
     //==============================================================================
-    tresult PLUGIN_API setComponentState (IBStream* stream) override
+    tresult PLUGIN_API setComponentState (IBStream*) override
     {
         // As an IEditController member, the host should only call this from the message thread.
         assertHostMessageThread();
@@ -1058,13 +1072,13 @@ public:
         if (auto* handler = getComponentHandler())
             handler->restartComponent (Vst::kParamValuesChanged);
 
-        return Vst::EditController::setComponentState (stream);
+        return kResultOk;
     }
 
     void setAudioProcessor (JuceAudioProcessor* audioProc)
     {
-        if (audioProcessor != audioProc)
-            installAudioProcessor (audioProc);
+        if (audioProcessor.get() != audioProc)
+            installAudioProcessor (addVSTComSmartPtrOwner (audioProc));
     }
 
     tresult PLUGIN_API connect (IConnectionPoint* other) override
@@ -1326,7 +1340,7 @@ public:
         {
             for (int32 i = 0; i < parameters.getParameterCount(); ++i)
                 if (auto* param = dynamic_cast<Param*> (parameters.getParameterByIndex (i)))
-                    if (param->updateParameterInfo() && (flags & Vst::kParamTitlesChanged) == 0)
+                    if (param->updateParameterInfo())
                         flags |= Vst::kParamTitlesChanged;
         }
 
@@ -1440,7 +1454,7 @@ private:
     }
 
     //==============================================================================
-    struct OwnedParameterListener  : public AudioProcessorParameter::Listener
+    struct OwnedParameterListener  final : public AudioProcessorParameter::Listener
     {
         OwnedParameterListener (JuceVST3EditController& editController,
                                 AudioProcessorParameter& parameter,
@@ -1523,7 +1537,7 @@ private:
     {
         audioProcessor = newAudioProcessor;
 
-        if (auto* extensions = dynamic_cast<VST3ClientExtensions*> (audioProcessor->get()))
+        if (auto* extensions = audioProcessor->get()->getVST3ClientExtensions())
         {
             extensions->setIComponentHandler (componentHandler);
             extensions->setIHostApplication (hostContext.get());
@@ -1609,16 +1623,15 @@ private:
     {
         jassert (hostContext != nullptr);
 
-        if (auto* message = allocateMessage())
+        if (auto message = becomeVSTComSmartPtrOwner (allocateMessage()))
         {
-            const FReleaser releaser (message);
             message->setMessageID (idTag);
             message->getAttributes()->setInt (idTag, value);
-            sendMessage (message);
+            sendMessage (message.get());
         }
     }
 
-    class EditorContextMenu  : public HostProvidedContextMenu
+    class EditorContextMenu final : public HostProvidedContextMenu
     {
     public:
         EditorContextMenu (AudioProcessorEditor& editorIn,
@@ -1671,7 +1684,7 @@ private:
                 }
                 else
                 {
-                    VSTComSmartPtr<MenuTarget> ownedTarget (target);
+                    const auto ownedTarget = addVSTComSmartPtrOwner (target);
                     const auto tag = item.tag;
                     menuStack.back().menu.addItem (toString (item.name),
                                                    (item.flags & MenuItem::kIsDisabled) == 0,
@@ -1701,7 +1714,7 @@ private:
         VSTComSmartPtr<Steinberg::Vst::IContextMenu> contextMenu;
     };
 
-    class EditorHostContext  : public AudioProcessorEditorHostContext
+    class EditorHostContext final : public AudioProcessorEditorHostContext
     {
     public:
         EditorHostContext (JuceAudioProcessor& processorIn,
@@ -1721,7 +1734,7 @@ private:
                 return {};
 
             const auto idToUse = parameter != nullptr ? processor.getVSTParamIDForIndex (parameter->getParameterIndex()) : 0;
-            const auto menu = VSTComSmartPtr<Steinberg::Vst::IContextMenu> (handler->createContextMenu (view, &idToUse));
+            const auto menu = becomeVSTComSmartPtrOwner (handler->createContextMenu (view, &idToUse));
             return std::make_unique<EditorContextMenu> (editor, menu);
         }
 
@@ -1733,14 +1746,15 @@ private:
     };
 
     //==============================================================================
-    class JuceVST3Editor  : public Vst::EditorView,
-                            public Steinberg::IPlugViewContentScaleSupport,
-                            private Timer
+    class JuceVST3Editor final : public Vst::EditorView,
+                                 public Vst::IParameterFinder,
+                                 public IPlugViewContentScaleSupport,
+                                 private Timer
     {
     public:
         JuceVST3Editor (JuceVST3EditController& ec, JuceAudioProcessor& p)
             : EditorView (&ec, nullptr),
-              owner (&ec),
+              owner (addVSTComSmartPtrOwner (&ec)),
               pluginInstance (*p.get())
         {
             createContentWrapperComponentIfNeeded();
@@ -1751,9 +1765,14 @@ private:
            #endif
         }
 
+        ~JuceVST3Editor() override = default; // NOLINT
+
         tresult PLUGIN_API queryInterface (const TUID targetIID, void** obj) override
         {
-            const auto result = testFor (*this, targetIID, UniqueBase<IPlugViewContentScaleSupport>{});
+            const auto result = testForMultiple (*this,
+                                                 targetIID,
+                                                 UniqueBase<Vst::IParameterFinder>{},
+                                                 UniqueBase<IPlugViewContentScaleSupport>{});
 
             if (result.isOk())
                 return result.extract (obj);
@@ -1761,7 +1780,9 @@ private:
             return Vst::EditorView::queryInterface (targetIID, obj);
         }
 
+        // NOLINTBEGIN
         REFCOUNT_METHODS (Vst::EditorView)
+        // NOLINTEND
 
         //==============================================================================
         tresult PLUGIN_API isPlatformTypeSupported (FIDString type) override
@@ -1847,6 +1868,7 @@ private:
                #endif
 
                 component = nullptr;
+                lastReportedSize.reset();
             }
 
            #if JUCE_LINUX || JUCE_BSD
@@ -1858,32 +1880,33 @@ private:
 
         tresult PLUGIN_API onSize (ViewRect* newSize) override
         {
-            if (newSize != nullptr)
+            if (newSize == nullptr)
             {
-                rect = convertFromHostBounds (*newSize);
-
-                if (component != nullptr)
-                {
-                    component->setSize (rect.getWidth(), rect.getHeight());
-
-                   #if JUCE_MAC
-                    if (cubase10Workaround != nullptr)
-                    {
-                        cubase10Workaround->triggerAsyncUpdate();
-                    }
-                    else
-                   #endif
-                    {
-                        if (auto* peer = component->getPeer())
-                            peer->updateBounds();
-                    }
-                }
-
-                return kResultTrue;
+                jassertfalse;
+                return kResultFalse;
             }
 
-            jassertfalse;
-            return kResultFalse;
+            lastReportedSize.reset();
+            rect = convertFromHostBounds (*newSize);
+
+            if (component == nullptr)
+                return kResultTrue;
+
+            component->setSize (rect.getWidth(), rect.getHeight());
+
+           #if JUCE_MAC
+            if (cubase10Workaround != nullptr)
+            {
+                cubase10Workaround->triggerAsyncUpdate();
+            }
+            else
+           #endif
+            {
+                if (auto* peer = component->getPeer())
+                    peer->updateBounds();
+            }
+
+            return kResultTrue;
         }
 
         tresult PLUGIN_API getSize (ViewRect* size) override
@@ -1893,15 +1916,16 @@ private:
                 return kResultFalse;
            #endif
 
-            if (size != nullptr && component != nullptr)
-            {
-                auto editorBounds = component->getSizeToContainChild();
+            if (size == nullptr || component == nullptr)
+                return kResultFalse;
 
-                *size = convertToHostBounds ({ 0, 0, editorBounds.getWidth(), editorBounds.getHeight() });
-                return kResultTrue;
-            }
+            const auto editorBounds = component->getSizeToContainChild();
+            const auto sizeToReport = lastReportedSize.has_value()
+                                    ? *lastReportedSize
+                                    : convertToHostBounds ({ 0, 0, editorBounds.getWidth(), editorBounds.getHeight() });
 
-            return kResultFalse;
+            lastReportedSize = *size = sizeToReport;
+            return kResultTrue;
         }
 
         tresult PLUGIN_API canResize() override
@@ -2033,7 +2057,48 @@ private:
            #endif
         }
 
+        tresult PLUGIN_API findParameter (int32 xPos, int32 yPos, Vst::ParamID& resultTag) override
+        {
+            if (const auto paramId = findParameterImpl (xPos, yPos))
+            {
+                resultTag = *paramId;
+                return kResultTrue;
+            }
+
+            return kResultFalse;
+        }
+
     private:
+        std::optional<Vst::ParamID> findParameterImpl (int32 xPos, int32 yPos) const
+        {
+            auto* wrapper = component.get();
+
+            if (wrapper == nullptr)
+                return {};
+
+            auto* componentAtPosition = wrapper->getComponentAt (xPos, yPos);
+
+            if (componentAtPosition == nullptr)
+                return {};
+
+            auto* editor = wrapper->pluginEditor.get();
+
+            if (editor == nullptr)
+                return {};
+
+            const auto parameterIndex = editor->getControlParameterIndex (*componentAtPosition);
+
+            if (parameterIndex < 0)
+                return {};
+
+            auto processor = owner->audioProcessor;
+
+            if (processor == nullptr)
+                return {};
+
+            return processor->getVSTParamIDForIndex (parameterIndex);
+        }
+
         void timerCallback() override
         {
             stopTimer();
@@ -2070,10 +2135,10 @@ private:
         }
 
         //==============================================================================
-        struct ContentWrapperComponent  : public Component
-                                       #if JUCE_WINDOWS && JUCE_WIN_PER_MONITOR_DPI_AWARE
-                                        , public Timer
-                                       #endif
+        struct ContentWrapperComponent final : public Component
+                                            #if JUCE_WINDOWS && JUCE_WIN_PER_MONITOR_DPI_AWARE
+                                             , public Timer
+                                            #endif
         {
             ContentWrapperComponent (JuceVST3Editor& editor)  : owner (editor)
             {
@@ -2278,6 +2343,7 @@ private:
 
         //==============================================================================
         ScopedJuceInitialiser_GUI libraryInitialiser;
+        std::optional<ViewRect> lastReportedSize;
 
        #if JUCE_LINUX || JUCE_BSD
         SharedResourcePointer<detail::MessageThread> messageThread;
@@ -2310,7 +2376,7 @@ private:
 
         // On macOS Cubase 10 resizes the host window after calling onSize() resulting in the peer
         // bounds being a step behind the plug-in. Calling updateBounds() asynchronously seems to fix things...
-        struct Cubase10WindowResizeWorkaround  : public AsyncUpdater
+        struct Cubase10WindowResizeWorkaround final : public AsyncUpdater
         {
             Cubase10WindowResizeWorkaround (JuceVST3Editor& o)  : owner (o) {}
 
@@ -2375,7 +2441,7 @@ private:
 
 //==============================================================================
 #if JucePlugin_Enable_ARA
- class JuceARAFactory : public ARA::IMainFactory
+ class JuceARAFactory final : public ARA::IMainFactory
  {
  public:
     JuceARAFactory() = default;
@@ -2419,21 +2485,21 @@ private:
 #endif
 
 //==============================================================================
-class JuceVST3Component : public Vst::IComponent,
-                          public Vst::IAudioProcessor,
-                          public Vst::IUnitInfo,
-                          public Vst::IConnectionPoint,
-                          public Vst::IProcessContextRequirements,
-                         #if JucePlugin_Enable_ARA
-                          public ARA::IPlugInEntryPoint,
-                          public ARA::IPlugInEntryPoint2,
-                         #endif
-                          public AudioPlayHead
+class JuceVST3Component final : public Vst::IComponent,
+                                public Vst::IAudioProcessor,
+                                public Vst::IUnitInfo,
+                                public Vst::IConnectionPoint,
+                                public Vst::IProcessContextRequirements,
+                               #if JucePlugin_Enable_ARA
+                                public ARA::IPlugInEntryPoint,
+                                public ARA::IPlugInEntryPoint2,
+                               #endif
+                                public AudioPlayHead
 {
 public:
     JuceVST3Component (Vst::IHostApplication* h)
         : pluginInstance (createPluginFilterOfType (AudioProcessor::wrapperType_VST3).release()),
-          host (h)
+          host (addVSTComSmartPtrOwner (h))
     {
         inParameterChangedCallback = false;
 
@@ -2451,7 +2517,7 @@ public:
         // and not AudioChannelSet::discreteChannels (2) etc.
         jassert (checkBusFormatsAreNotDiscrete());
 
-        comPluginInstance = VSTComSmartPtr<JuceAudioProcessor> { new JuceAudioProcessor (pluginInstance) };
+        comPluginInstance = addVSTComSmartPtrOwner (new JuceAudioProcessor (pluginInstance));
 
         zerostruct (processContext);
 
@@ -2505,7 +2571,7 @@ public:
     //==============================================================================
     tresult PLUGIN_API initialize (FUnknown* hostContext) override
     {
-        if (host != hostContext)
+        if (host.get() != hostContext)
             host.loadFrom (hostContext);
 
         processContext.sampleRate = processSetup.sampleRate;
@@ -2546,10 +2612,10 @@ public:
 
             if (message->getAttributes()->getInt ("JuceVST3EditController", value) == kResultTrue)
             {
-                juceVST3EditController = VSTComSmartPtr<JuceVST3EditController> { (JuceVST3EditController*) (pointer_sized_int) value };
+                juceVST3EditController = addVSTComSmartPtrOwner ((JuceVST3EditController*) (pointer_sized_int) value);
 
                 if (juceVST3EditController != nullptr)
-                    juceVST3EditController->setAudioProcessor (comPluginInstance);
+                    juceVST3EditController->setAudioProcessor (comPluginInstance.get());
                 else
                     jassertfalse;
             }
@@ -3082,7 +3148,7 @@ public:
                     {
                         if (isFirstBus)
                         {
-                            if (auto* extensions = dynamic_cast<VST3ClientExtensions*> (pluginInstance))
+                            if (auto* extensions = pluginInstance->getVST3ClientExtensions())
                                 return extensions->getPluginHasMainInput() ? Vst::kMain : Vst::kAux;
 
                             return Vst::kMain;
@@ -3124,7 +3190,7 @@ public:
                 info.channelCount = 16;
                #endif
 
-                toString128 (info.name, TRANS("MIDI Input"));
+                toString128 (info.name, TRANS ("MIDI Input"));
                 info.busType = Vst::kMain;
                 return kResultTrue;
             }
@@ -3142,7 +3208,7 @@ public:
                 info.channelCount = 16;
                #endif
 
-                toString128 (info.name, TRANS("MIDI Output"));
+                toString128 (info.name, TRANS ("MIDI Output"));
                 info.busType = Vst::kMain;
                 return kResultTrue;
             }
@@ -3186,10 +3252,10 @@ public:
 
         if (type == Vst::kAudio)
         {
-            const auto numInputBuses  = getNumAudioBuses (true);
-            const auto numOutputBuses = getNumAudioBuses (false);
+            const auto numPublicInputBuses  = getNumAudioBuses (true);
+            const auto numPublicOutputBuses = getNumAudioBuses (false);
 
-            if (! isPositiveAndBelow (index, dir == Vst::kInput ? numInputBuses : numOutputBuses))
+            if (! isPositiveAndBelow (index, dir == Vst::kInput ? numPublicInputBuses : numPublicOutputBuses))
                 return kResultFalse;
 
             // The host is allowed to enable/disable buses as it sees fit, so the plugin needs to be
@@ -3212,11 +3278,20 @@ public:
 
             AudioProcessor::BusesLayout desiredLayout;
 
-            for (auto i = 0; i < numInputBuses; ++i)
-                desiredLayout.inputBuses.add (bufferMapper.getRequestedLayoutForInputBus ((size_t) i));
+            for (const auto isInput : { true, false })
+            {
+                const auto numPublicBuses = isInput ? numPublicInputBuses : numPublicOutputBuses;
+                auto& layoutBuses = isInput ? desiredLayout.inputBuses : desiredLayout.outputBuses;
 
-            for (auto i = 0; i < numOutputBuses; ++i)
-                desiredLayout.outputBuses.add (bufferMapper.getRequestedLayoutForOutputBus ((size_t) i));
+                for (auto i = 0; i < numPublicBuses; ++i)
+                {
+                    layoutBuses.add (isInput ? bufferMapper.getRequestedLayoutForInputBus ((size_t) i)
+                                             : bufferMapper.getRequestedLayoutForOutputBus ((size_t) i));
+                }
+
+                while (layoutBuses.size() < pluginInstance->getBusCount (isInput))
+                    layoutBuses.add (AudioChannelSet::disabled());
+            }
 
             const auto prev = pluginInstance->getBusesLayout();
 
@@ -3414,7 +3489,7 @@ public:
 
     tresult PLUGIN_API setupProcessing (Vst::ProcessSetup& newSetup) override
     {
-        ScopedInSetupProcessingSetter inSetupProcessingSetter (juceVST3EditController);
+        ScopedInSetupProcessingSetter inSetupProcessingSetter (juceVST3EditController.get());
 
         if (canProcessSampleSize (newSetup.symbolicSampleSize) != kResultTrue)
             return kResultFalse;
@@ -3855,7 +3930,7 @@ bool shutdownModule()
 #if JUCE_WINDOWS
  #define JUCE_EXPORTED_FUNCTION
 #else
- #define JUCE_EXPORTED_FUNCTION extern "C" __attribute__ ((visibility("default")))
+ #define JUCE_EXPORTED_FUNCTION extern "C" __attribute__ ((visibility ("default")))
 #endif
 
 #if JUCE_WINDOWS
@@ -3945,7 +4020,7 @@ bool shutdownModule()
 #endif
 
 // See https://steinbergmedia.github.io/vst3_dev_portal/pages/FAQ/Compatibility+with+VST+2.x+or+VST+1.html
-class JucePluginCompatibility : public IPluginCompatibility
+class JucePluginCompatibility final : public IPluginCompatibility
 {
 public:
     virtual ~JucePluginCompatibility() = default;
@@ -3954,36 +4029,43 @@ public:
 
     tresult PLUGIN_API getCompatibilityJSON (IBStream* stream) override
     {
+        const ScopedJuceInitialiser_GUI libraryInitialiser;
+
         auto filter = createPluginFilterOfType (AudioProcessor::WrapperType::wrapperType_VST3);
-        auto* extensions = dynamic_cast<const VST3ClientExtensions*> (filter.get());
+        auto* extensions = filter->getVST3ClientExtensions();
 
-        if (extensions == nullptr || extensions->getCompatibleClasses().empty())
-            return kResultFalse;
-
-        DynamicObject::Ptr object { new DynamicObject };
-
-        // New iid is the ID of our Audio Effect class
-        object->setProperty ("New", String (VST3::UID (JuceVST3Component::iid).toString()));
-        object->setProperty ("Old", [&]
+        const auto compatibilityObjects = [&]
         {
-            Array<var> oldArray;
+            if (extensions == nullptr || extensions->getCompatibleClasses().empty())
+                return Array<var>();
 
-            for (const auto& uid : extensions->getCompatibleClasses())
+            DynamicObject::Ptr object { new DynamicObject };
+
+            // New iid is the ID of our Audio Effect class
+            object->setProperty ("New", String (VST3::UID (JuceVST3Component::iid).toString()));
+            object->setProperty ("Old", [&]
             {
-                // All UIDs returned from getCompatibleClasses should be 32 characters long
-                jassert (uid.length() == 32);
+                Array<var> oldArray;
 
-                // All UIDs returned from getCompatibleClasses should be in hex notation
-                jassert (uid.containsOnly ("ABCDEF0123456789"));
+                for (const auto& uid : extensions->getCompatibleClasses())
+                {
+                    // All UIDs returned from getCompatibleClasses should be 32 characters long
+                    jassert (uid.length() == 32);
 
-                oldArray.add (uid);
-            }
+                    // All UIDs returned from getCompatibleClasses should be in hex notation
+                    jassert (uid.containsOnly ("ABCDEF0123456789"));
 
-            return oldArray;
-        }());
+                    oldArray.add (uid);
+                }
+
+                return oldArray;
+            }());
+
+            return Array<var> { object.get() };
+        }();
 
         MemoryOutputStream memory;
-        JSON::writeToStream (memory, var { Array<var> { object.get() } });
+        JSON::writeToStream (memory, var { compatibilityObjects });
         return stream->write (memory.getMemoryBlock().getData(), (Steinberg::int32) memory.getDataSize());
     }
 
@@ -4013,7 +4095,7 @@ private:
 using CreateFunction = FUnknown* (*)(Vst::IHostApplication*);
 
 //==============================================================================
-struct JucePluginFactory  : public IPluginFactory3
+struct JucePluginFactory final : public IPluginFactory3
 {
     JucePluginFactory()
         : factoryInfo (JucePlugin_Manufacturer, JucePlugin_ManufacturerWebsite,
@@ -4110,10 +4192,8 @@ struct JucePluginFactory  : public IPluginFactory3
         {
             if (doUIDsMatch (entry.infoW.cid, cid))
             {
-                if (auto* instance = entry.createFunction (host))
+                if (auto instance = becomeVSTComSmartPtrOwner (entry.createFunction (host.get())))
                 {
-                    const FReleaser releaser (instance);
-
                     if (instance->queryInterface (iidToQuery, obj) == kResultOk)
                         return kResultOk;
                 }
@@ -4224,10 +4304,6 @@ private:
 
         static const ClassEntry classEntries[]
         {
-            ClassEntry { compatibilityClass, [] (Vst::IHostApplication*) -> Steinberg::FUnknown*
-            {
-                return new JucePluginCompatibility;
-            } },
             ClassEntry { componentClass, [] (Vst::IHostApplication* h) -> Steinberg::FUnknown*
             {
                 return static_cast<Vst::IAudioProcessor*> (new JuceVST3Component (h));
@@ -4235,6 +4311,10 @@ private:
             ClassEntry { controllerClass, [] (Vst::IHostApplication* h) -> Steinberg::FUnknown*
             {
                 return static_cast<Vst::IEditController*> (new JuceVST3EditController (h));
+            } },
+            ClassEntry { compatibilityClass, [] (Vst::IHostApplication*) -> Steinberg::FUnknown*
+            {
+                return new JucePluginCompatibility;
             } },
            #if JucePlugin_Enable_ARA
             ClassEntry { araFactoryClass, [] (Vst::IHostApplication*) -> Steinberg::FUnknown*
