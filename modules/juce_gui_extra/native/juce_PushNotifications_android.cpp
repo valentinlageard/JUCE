@@ -1,24 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2022 - Raw Material Software Limited
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
-   Agreement and JUCE Privacy Policy.
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-7-licence
-   Privacy Policy: www.juce.com/juce-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -374,7 +383,7 @@ struct PushNotifications::Pimpl
 
             owner.listeners.call ([&] (Listener& l) { l.handleNotificationAction (true, notification, actionTitle, {}); });
         }
-        else if (getAndroidSDKVersion() >= 20 && actionString.contains (notificationTextInputActionString))
+        else if (actionString.contains (notificationTextInputActionString))
         {
             auto prefix = notificationTextInputActionString + notification.identifier + ".";
 
@@ -436,7 +445,7 @@ struct PushNotifications::Pimpl
     //==============================================================================
     String getDeviceToken() const
     {
-      #if defined(JUCE_FIREBASE_INSTANCE_ID_SERVICE_CLASSNAME)
+      #if defined (JUCE_FIREBASE_INSTANCE_ID_SERVICE_CLASSNAME)
         auto* env = getEnv();
 
         auto instanceId = LocalRef<jobject> (env->CallStaticObjectMethod (FirebaseInstanceId, FirebaseInstanceId.getInstance));
@@ -449,7 +458,7 @@ struct PushNotifications::Pimpl
 
     void notifyListenersTokenRefreshed ([[maybe_unused]] const String& token)
     {
-      #if defined(JUCE_FIREBASE_INSTANCE_ID_SERVICE_CLASSNAME)
+      #if defined (JUCE_FIREBASE_INSTANCE_ID_SERVICE_CLASSNAME)
         MessageManager::callAsync ([this, token]
         {
             owner.listeners.call ([&] (Listener& l) { l.deviceTokenRefreshed (token); });
@@ -460,7 +469,7 @@ struct PushNotifications::Pimpl
     //==============================================================================
     void subscribeToTopic ([[maybe_unused]] const String& topic)
     {
-      #if defined(JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
+      #if defined (JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
         auto* env = getEnv();
 
         auto firebaseMessaging = LocalRef<jobject> (env->CallStaticObjectMethod (FirebaseMessaging,
@@ -472,7 +481,7 @@ struct PushNotifications::Pimpl
 
     void unsubscribeFromTopic ([[maybe_unused]] const String& topic)
     {
-      #if defined(JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
+      #if defined (JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
         auto* env = getEnv();
 
         auto firebaseMessaging = LocalRef<jobject> (env->CallStaticObjectMethod (FirebaseMessaging,
@@ -489,7 +498,7 @@ struct PushNotifications::Pimpl
                               [[maybe_unused]] int timeToLive,
                               [[maybe_unused]] const StringPairArray& additionalData)
     {
-      #if defined(JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
+      #if defined (JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
         auto* env = getEnv();
 
         auto messageBuilder = LocalRef<jobject> (env->NewObject (RemoteMessageBuilder,
@@ -520,7 +529,7 @@ struct PushNotifications::Pimpl
 
     void notifyListenersAboutRemoteNotificationFromSystemTray ([[maybe_unused]] const LocalRef<jobject>& intent)
     {
-      #if defined(JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
+      #if defined (JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
         auto* env = getEnv();
 
         auto bundle = LocalRef<jobject> (env->CallObjectMethod (intent, AndroidIntent.getExtras));
@@ -532,7 +541,7 @@ struct PushNotifications::Pimpl
 
     void notifyListenersAboutRemoteNotificationFromService ([[maybe_unused]] const LocalRef<jobject>& remoteNotification)
     {
-      #if defined(JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
+      #if defined (JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
         GlobalRef rn (remoteNotification);
 
         MessageManager::callAsync ([this, rn]
@@ -545,7 +554,7 @@ struct PushNotifications::Pimpl
 
     void notifyListenersAboutRemoteNotificationsDeleted()
     {
-      #if defined(JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
+      #if defined (JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
         MessageManager::callAsync ([this]
         {
             owner.listeners.call ([] (Listener& l) { l.remoteNotificationsDeleted(); });
@@ -555,8 +564,8 @@ struct PushNotifications::Pimpl
 
     void notifyListenersAboutUpstreamMessageSent ([[maybe_unused]] const LocalRef<jstring>& messageId)
     {
-      #if defined(JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
-        GlobalRef mid (LocalRef<jobject>(messageId.get()));
+      #if defined (JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
+        GlobalRef mid (LocalRef<jobject> (messageId.get()));
 
         MessageManager::callAsync ([this, mid]
         {
@@ -569,8 +578,8 @@ struct PushNotifications::Pimpl
     void notifyListenersAboutUpstreamMessageSendingError ([[maybe_unused]] const LocalRef<jstring>& messageId,
                                                           [[maybe_unused]] const LocalRef<jstring>& error)
     {
-      #if defined(JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
-        GlobalRef mid (LocalRef<jobject>(messageId.get())), e (LocalRef<jobject>(error.get()));
+      #if defined (JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
+        GlobalRef mid (LocalRef<jobject> (messageId.get())), e (LocalRef<jobject> (error.get()));
 
         MessageManager::callAsync ([this, mid, e]
         {
@@ -604,10 +613,7 @@ struct PushNotifications::Pimpl
         if (n.actions.size() > 0)
             setupActions (n, notificationBuilder);
 
-        if (getAndroidSDKVersion() >= 16)
-            return LocalRef<jobject> (env->CallObjectMethod (notificationBuilder, NotificationBuilderApi16.build));
-
-        return LocalRef<jobject> (env->CallObjectMethod (notificationBuilder, NotificationBuilderBase.getNotification));
+        return LocalRef<jobject> (env->CallObjectMethod (notificationBuilder, NotificationBuilderApi16.build));
     }
 
     static LocalRef<jobject> createNotificationBuilder (const PushNotifications::Notification& n)
@@ -675,7 +681,7 @@ struct PushNotifications::Pimpl
 
         env->CallObjectMethod (notificationBuilder, NotificationBuilderBase.setSmallIcon, iconId);
 
-        if (getAndroidSDKVersion() >= 21 && n.publicVersion != nullptr)
+        if (n.publicVersion != nullptr)
         {
             // Public version of a notification is not expected to have another public one!
             jassert (n.publicVersion->publicVersion == nullptr);
@@ -805,61 +811,49 @@ struct PushNotifications::Pimpl
         env->CallObjectMethod (notificationBuilder, NotificationBuilderBase.setOngoing, n.ongoing);
         env->CallObjectMethod (notificationBuilder, NotificationBuilderBase.setOnlyAlertOnce, n.alertOnlyOnce);
 
-        if (getAndroidSDKVersion() >= 16)
+        if (n.subtitle.isNotEmpty())
+            env->CallObjectMethod (notificationBuilder, NotificationBuilderApi16.setSubText, javaString (n.subtitle).get());
+
+        env->CallObjectMethod (notificationBuilder, NotificationBuilderApi16.setPriority, n.priority);
+
+        if (getAndroidSDKVersion() < 24)
         {
-            if (n.subtitle.isNotEmpty())
-                env->CallObjectMethod (notificationBuilder, NotificationBuilderApi16.setSubText, javaString (n.subtitle).get());
-
-            env->CallObjectMethod (notificationBuilder, NotificationBuilderApi16.setPriority, n.priority);
-
-            if (getAndroidSDKVersion() < 24)
-            {
-                const bool useChronometer = n.timestampVisibility == PushNotifications::Notification::chronometer;
-                env->CallObjectMethod (notificationBuilder, NotificationBuilderApi16.setUsesChronometer, useChronometer);
-            }
+            const bool useChronometer = n.timestampVisibility == PushNotifications::Notification::chronometer;
+            env->CallObjectMethod (notificationBuilder, NotificationBuilderApi16.setUsesChronometer, useChronometer);
         }
 
-        if (getAndroidSDKVersion() >= 17)
+        const bool showTimeStamp = n.timestampVisibility != PushNotifications::Notification::off;
+        env->CallObjectMethod (notificationBuilder, NotificationBuilderApi17.setShowWhen, showTimeStamp);
+
+        if (n.groupId.isNotEmpty())
         {
-            const bool showTimeStamp = n.timestampVisibility != PushNotifications::Notification::off;
-            env->CallObjectMethod (notificationBuilder, NotificationBuilderApi17.setShowWhen, showTimeStamp);
+            env->CallObjectMethod (notificationBuilder, NotificationBuilderApi20.setGroup, javaString (n.groupId).get());
+            env->CallObjectMethod (notificationBuilder, NotificationBuilderApi20.setGroupSummary, n.groupSummary);
         }
 
-        if (getAndroidSDKVersion() >= 20)
-        {
-            if (n.groupId.isNotEmpty())
-            {
-                env->CallObjectMethod (notificationBuilder, NotificationBuilderApi20.setGroup, javaString (n.groupId).get());
-                env->CallObjectMethod (notificationBuilder, NotificationBuilderApi20.setGroupSummary, n.groupSummary);
-            }
+        if (n.groupSortKey.isNotEmpty())
+            env->CallObjectMethod (notificationBuilder, NotificationBuilderApi20.setSortKey, javaString (n.groupSortKey).get());
 
-            if (n.groupSortKey.isNotEmpty())
-                env->CallObjectMethod (notificationBuilder, NotificationBuilderApi20.setSortKey, javaString (n.groupSortKey).get());
+        env->CallObjectMethod (notificationBuilder, NotificationBuilderApi20.setLocalOnly, n.localOnly);
 
-            env->CallObjectMethod (notificationBuilder, NotificationBuilderApi20.setLocalOnly, n.localOnly);
+        auto extras = LocalRef<jobject> (env->NewObject (AndroidBundle, AndroidBundle.constructor));
 
-            auto extras = LocalRef<jobject> (env->NewObject (AndroidBundle, AndroidBundle.constructor));
+        env->CallVoidMethod (extras, AndroidBundle.putBundle, javaString ("notificationData").get(),
+                             juceNotificationToBundle (n).get());
 
-            env->CallVoidMethod (extras, AndroidBundle.putBundle, javaString ("notificationData").get(),
-                                 juceNotificationToBundle (n).get());
+        env->CallObjectMethod (notificationBuilder, NotificationBuilderApi20.addExtras, extras.get());
 
-            env->CallObjectMethod (notificationBuilder, NotificationBuilderApi20.addExtras, extras.get());
-        }
+        if (n.person.isNotEmpty())
+            env->CallObjectMethod (notificationBuilder, NotificationBuilderApi21.addPerson, javaString (n.person).get());
 
-        if (getAndroidSDKVersion() >= 21)
-        {
-            if (n.person.isNotEmpty())
-                env->CallObjectMethod (notificationBuilder, NotificationBuilderApi21.addPerson, javaString (n.person).get());
+        auto categoryString = typeToCategory (n.type);
+        if (categoryString.isNotEmpty())
+            env->CallObjectMethod (notificationBuilder, NotificationBuilderApi21.setCategory, javaString (categoryString).get());
 
-            auto categoryString = typeToCategory (n.type);
-            if (categoryString.isNotEmpty())
-                env->CallObjectMethod (notificationBuilder, NotificationBuilderApi21.setCategory, javaString (categoryString).get());
+        if (n.accentColour != Colour())
+            env->CallObjectMethod (notificationBuilder, NotificationBuilderApi21.setColor, n.accentColour.getARGB());
 
-            if (n.accentColour != Colour())
-                env->CallObjectMethod (notificationBuilder, NotificationBuilderApi21.setColor, n.accentColour.getARGB());
-
-            env->CallObjectMethod (notificationBuilder, NotificationBuilderApi21.setVisibility, n.lockScreenAppearance);
-        }
+        env->CallObjectMethod (notificationBuilder, NotificationBuilderApi21.setVisibility, n.lockScreenAppearance);
 
         if (getAndroidSDKVersion() >= 24)
         {
@@ -908,9 +902,6 @@ struct PushNotifications::Pimpl
 
     static void setupActions (const PushNotifications::Notification& n, LocalRef<jobject>& notificationBuilder)
     {
-        if (getAndroidSDKVersion() < 16)
-            return;
-
         auto* env = getEnv();
         LocalRef<jobject> context (getMainActivity());
 
@@ -947,58 +938,50 @@ struct PushNotifications::Pimpl
                 iconId = env->CallIntMethod (resources, AndroidResources.getIdentifier, javaString (n.icon).get(),
                                              javaString ("raw").get(), packageNameString.get());
 
-            if (getAndroidSDKVersion() >= 20)
+            auto actionBuilder = LocalRef<jobject> (env->NewObject (NotificationActionBuilder,
+                                                                    NotificationActionBuilder.constructor,
+                                                                    iconId,
+                                                                    javaString (action.title).get(),
+                                                                    notifyPendingIntent.get()));
+
+            env->CallObjectMethod (actionBuilder, NotificationActionBuilder.addExtras,
+                                   varToBundleWithPropertiesString (action.parameters).get());
+
+            if (isTextStyle)
             {
-                auto actionBuilder = LocalRef<jobject> (env->NewObject (NotificationActionBuilder,
-                                                                        NotificationActionBuilder.constructor,
-                                                                        iconId,
-                                                                        javaString (action.title).get(),
-                                                                        notifyPendingIntent.get()));
+                auto resultKey = javaString (action.title + String (actionIndex));
+                auto remoteInputBuilder = LocalRef<jobject> (env->NewObject (RemoteInputBuilder,
+                                                                             RemoteInputBuilder.constructor,
+                                                                             resultKey.get()));
 
-                env->CallObjectMethod (actionBuilder, NotificationActionBuilder.addExtras,
-                                       varToBundleWithPropertiesString (action.parameters).get());
+                if (! action.textInputPlaceholder.isEmpty())
+                    env->CallObjectMethod (remoteInputBuilder, RemoteInputBuilder.setLabel, javaString (action.textInputPlaceholder).get());
 
-                if (isTextStyle)
+                if (! action.allowedResponses.isEmpty())
                 {
-                    auto resultKey = javaString (action.title + String (actionIndex));
-                    auto remoteInputBuilder = LocalRef<jobject> (env->NewObject (RemoteInputBuilder,
-                                                                                 RemoteInputBuilder.constructor,
-                                                                                 resultKey.get()));
+                    env->CallObjectMethod (remoteInputBuilder, RemoteInputBuilder.setAllowFreeFormInput, false);
 
-                    if (! action.textInputPlaceholder.isEmpty())
-                        env->CallObjectMethod (remoteInputBuilder, RemoteInputBuilder.setLabel, javaString (action.textInputPlaceholder).get());
+                    const int size = action.allowedResponses.size();
 
-                    if (! action.allowedResponses.isEmpty())
+                    auto array = LocalRef<jobjectArray> (env->NewObjectArray (size, env->FindClass ("java/lang/String"), nullptr));
+
+                    for (int i = 0; i < size; ++i)
                     {
-                        env->CallObjectMethod (remoteInputBuilder, RemoteInputBuilder.setAllowFreeFormInput, false);
+                        const auto& response = action.allowedResponses[i];
+                        auto responseString = javaString (response);
 
-                        const int size = action.allowedResponses.size();
-
-                        auto array = LocalRef<jobjectArray> (env->NewObjectArray (size, env->FindClass ("java/lang/String"), nullptr));
-
-                        for (int i = 0; i < size; ++i)
-                        {
-                            const auto& response = action.allowedResponses[i];
-                            auto responseString = javaString (response);
-
-                            env->SetObjectArrayElement (array, i, responseString.get());
-                        }
-
-                        env->CallObjectMethod (remoteInputBuilder, RemoteInputBuilder.setChoices, array.get());
+                        env->SetObjectArrayElement (array, i, responseString.get());
                     }
 
-                    env->CallObjectMethod (actionBuilder, NotificationActionBuilder.addRemoteInput,
-                                           env->CallObjectMethod (remoteInputBuilder, RemoteInputBuilder.build));
+                    env->CallObjectMethod (remoteInputBuilder, RemoteInputBuilder.setChoices, array.get());
                 }
 
-                env->CallObjectMethod (notificationBuilder, NotificationBuilderApi20.addAction,
-                                       env->CallObjectMethod (actionBuilder, NotificationActionBuilder.build));
+                env->CallObjectMethod (actionBuilder, NotificationActionBuilder.addRemoteInput,
+                                       env->CallObjectMethod (remoteInputBuilder, RemoteInputBuilder.build));
             }
-            else
-            {
-                env->CallObjectMethod (notificationBuilder, NotificationBuilderApi16.addAction,
-                                       iconId, javaString (action.title).get(), notifyPendingIntent.get());
-            }
+
+            env->CallObjectMethod (notificationBuilder, NotificationBuilderApi20.addAction,
+                                   env->CallObjectMethod (actionBuilder, NotificationActionBuilder.build));
 
             ++actionIndex;
         }
@@ -1077,7 +1060,7 @@ struct PushNotifications::Pimpl
 
         auto bundle = LocalRef<jobject> (env->NewObject (AndroidBundle, AndroidBundle.constructor));
         env->CallVoidMethod (bundle, AndroidBundle.putString, javaString ("properties").get(),
-                             javaString (JSON::toString (varToParse, false)).get());
+                             javaString (JSON::toString (varToParse)).get());
 
         return bundle;
     }
@@ -1235,9 +1218,6 @@ struct PushNotifications::Pimpl
 
     static PushNotifications::Notification javaNotificationToJuceNotification (const LocalRef<jobject>& notification)
     {
-        if (getAndroidSDKVersion() < 20)
-            return {};
-
         auto* env = getEnv();
 
         auto extras = LocalRef<jobject> (env->GetObjectField (notification, AndroidNotification.extras));
@@ -1301,7 +1281,7 @@ struct PushNotifications::Pimpl
         return {};
     }
 
-  #if defined(JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
+  #if defined (JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
     static PushNotifications::Notification firebaseRemoteNotificationToJuceNotification (jobject remoteNotification)
     {
         auto* env = getEnv();
@@ -1533,7 +1513,7 @@ struct PushNotifications::Pimpl
     PushNotifications& owner;
 };
 
-#if defined(JUCE_FIREBASE_INSTANCE_ID_SERVICE_CLASSNAME)
+#if defined (JUCE_FIREBASE_INSTANCE_ID_SERVICE_CLASSNAME)
 //==============================================================================
 struct JuceFirebaseInstanceIdService
 {
@@ -1551,7 +1531,7 @@ struct JuceFirebaseInstanceIdService
 };
 #endif
 
-#if defined(JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
+#if defined (JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
 //==============================================================================
 struct JuceFirebaseMessagingService
 {
@@ -1611,7 +1591,7 @@ bool juce_handleNotificationIntent (void* intent)
 
         return true;
     }
-  #if defined(JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
+  #if defined (JUCE_FIREBASE_MESSAGING_SERVICE_CLASSNAME)
     else if (PushNotifications::Pimpl::isRemoteNotificationIntent ((jobject) intent))
     {
         if (instance)

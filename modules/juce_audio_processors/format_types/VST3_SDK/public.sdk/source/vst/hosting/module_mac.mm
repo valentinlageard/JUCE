@@ -8,7 +8,7 @@
 //
 //-----------------------------------------------------------------------------
 // LICENSE
-// (c) 2022, Steinberg Media Technologies GmbH, All Rights Reserved
+// (c) 2024, Steinberg Media Technologies GmbH, All Rights Reserved
 //-----------------------------------------------------------------------------
 // Redistribution and use in source and binary forms, with or without modification,
 // are permitted provided that the following conditions are met:
@@ -180,7 +180,12 @@ public:
 			{
 				std::string wd (workDir);
 				wd += "/";
-				return loadInternal (wd + path, errorDescription);
+				if (loadInternal (wd + path, errorDescription))
+				{
+					name = path;
+					return true;
+				}
+				return false;
 			}
 		}
 		return loadInternal (path, errorDescription);
@@ -373,10 +378,10 @@ Optional<std::string> Module::getModuleInfoPath (const std::string& modulePath)
 	auto bundleUrl = [NSURL fileURLWithPath:nsString];
 	if (!bundleUrl)
 		return {};
-	auto contentsUrl = [bundleUrl URLByAppendingPathComponent:@"Contents"];
-	if (!contentsUrl)
-		return {};
-	auto moduleInfoUrl = [contentsUrl URLByAppendingPathComponent:@"moduleinfo.json"];
+	auto moduleInfoUrl = [NSBundle URLForResource:@"moduleinfo"
+	                                withExtension:@"json"
+	                                 subdirectory:nullptr
+	                              inBundleWithURL:bundleUrl];
 	if (!moduleInfoUrl)
 		return {};
 	NSError* error = nil;

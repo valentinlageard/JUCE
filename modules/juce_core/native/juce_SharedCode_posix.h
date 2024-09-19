@@ -1,21 +1,33 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2022 - Raw Material Software Limited
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   The code included in this file is provided under the terms of the ISC license
-   http://www.isc.org/downloads/software-support-policy/isc-license. Permission
-   To use, copy, modify, and/or distribute this software for any purpose with or
-   without fee is hereby granted provided that the above copyright notice and
-   this permission notice appear in all copies.
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
+
+   Or:
+
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
@@ -404,6 +416,9 @@ bool File::moveInternal (const File& dest) const
 {
     if (rename (fullPath.toUTF8(), dest.getFullPathName().toUTF8()) == 0)
         return true;
+
+    if (isNonEmptyDirectory())
+        return false;
 
     if (hasWriteAccess() && copyInternal (dest))
     {
@@ -854,7 +869,7 @@ class PosixThreadAttribute
 public:
     explicit PosixThreadAttribute (size_t stackSize)
     {
-        if (valid)
+        if (valid && stackSize != 0)
             pthread_attr_setstacksize (&attr, stackSize);
     }
 
@@ -894,7 +909,7 @@ public:
                 const auto min = jmax (0, sched_get_priority_min (SCHED_RR));
                 const auto max = jmax (1, sched_get_priority_max (SCHED_RR));
 
-                return jmap (rt->priority, 0, 10, min, max);
+                return jmap (rt->getPriority(), 0, 10, min, max);
             }
 
             // We only use this helper if we're on an old macos/ios platform that might
@@ -959,11 +974,13 @@ private:
     int priority;
 };
 
-static void* makeThreadHandle (PosixThreadAttribute& attr, Thread* userData, void* (*threadEntryProc) (void*))
+static void* makeThreadHandle (PosixThreadAttribute& attr, void* userData, void* (*threadEntryProc) (void*))
 {
     pthread_t handle = {};
 
-    if (pthread_create (&handle, attr.get(), threadEntryProc, userData) != 0)
+    const auto status = pthread_create (&handle, attr.get(), threadEntryProc, userData);
+
+    if (status != 0)
         return nullptr;
 
     pthread_detach (handle);

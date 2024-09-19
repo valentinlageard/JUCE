@@ -1,29 +1,40 @@
 /*
   ==============================================================================
 
-   This file is part of the JUCE library.
-   Copyright (c) 2022 - Raw Material Software Limited
+   This file is part of the JUCE framework.
+   Copyright (c) Raw Material Software Limited
 
-   JUCE is an open source library subject to commercial or open-source
+   JUCE is an open source framework subject to commercial or open source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
-   Agreement and JUCE Privacy Policy.
+   By downloading, installing, or using the JUCE framework, or combining the
+   JUCE framework with any other source code, object code, content or any other
+   copyrightable work, you agree to the terms of the JUCE End User Licence
+   Agreement, and all incorporated terms including the JUCE Privacy Policy and
+   the JUCE Website Terms of Service, as applicable, which will bind you. If you
+   do not agree to the terms of these agreements, we will not license the JUCE
+   framework to you, and you must discontinue the installation or download
+   process and cease use of the JUCE framework.
 
-   End User License Agreement: www.juce.com/juce-7-licence
-   Privacy Policy: www.juce.com/juce-privacy-policy
+   JUCE End User Licence Agreement: https://juce.com/legal/juce-8-licence/
+   JUCE Privacy Policy: https://juce.com/juce-privacy-policy
+   JUCE Website Terms of Service: https://juce.com/juce-website-terms-of-service/
 
-   Or: You may also use this code under the terms of the GPL v3 (see
-   www.gnu.org/licenses).
+   Or:
 
-   JUCE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL WARRANTIES, WHETHER
-   EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
-   DISCLAIMED.
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   THE JUCE FRAMEWORK IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
 */
 
 #pragma once
+
+#include "jucer_ProjectSaver.h"
 
 inline String msBuildEscape (String str)
 {
@@ -43,7 +54,7 @@ inline StringArray msBuildEscape (StringArray range)
 }
 
 //==============================================================================
-class MSVCProjectExporterBase   : public ProjectExporter
+class MSVCProjectExporterBase : public ProjectExporter
 {
 public:
     MSVCProjectExporterBase (Project& p, const ValueTree& t, String folderName)
@@ -154,8 +165,8 @@ public:
     }
 
     //==============================================================================
-    class MSVCBuildConfiguration  : public BuildConfiguration,
-                                    private Value::Listener
+    class MSVCBuildConfiguration final : public BuildConfiguration,
+                                         private Value::Listener
     {
     public:
         MSVCBuildConfiguration (Project& p, const ValueTree& settings, const ProjectExporter& e)
@@ -417,16 +428,16 @@ public:
     };
 
     //==============================================================================
-    class MSVCTargetBase : public build_tools::ProjectType::Target
+    class MSVCTarget final : public build_tools::ProjectType::Target
     {
     public:
-        MSVCTargetBase (build_tools::ProjectType::Target::Type targetType, const MSVCProjectExporterBase& exporter)
+        MSVCTarget (build_tools::ProjectType::Target::Type targetType, const MSVCProjectExporterBase& exporter)
             : build_tools::ProjectType::Target (targetType), owner (exporter)
         {
             projectGuid = createGUID (owner.getProject().getProjectUIDString() + getName());
         }
 
-        virtual ~MSVCTargetBase() {}
+        virtual ~MSVCTarget() {}
 
         String getProjectVersionString() const     { return "10.00"; }
         String getProjectFileSuffix() const        { return ".vcxproj"; }
@@ -565,7 +576,8 @@ public:
                     if (type != SharedCodeTarget)
                     {
                         auto librarySearchPaths = getLibrarySearchPaths (config);
-                        if (librarySearchPaths.size() > 0)
+
+                        if (! librarySearchPaths.isEmpty())
                         {
                             auto* libPath = props->createNewChildElement ("LibraryPath");
                             setConditionAttribute (*libPath, config);
@@ -798,12 +810,9 @@ public:
                 }
                 else if (type == VST3Helper)
                 {
-                    for (const auto& source : owner.getVST3HelperProgramSources (owner))
-                    {
-                        const auto location = owner.rebaseFromProjectFolderToBuildTarget (source)
-                                                   .toWindowsStyle();
-                        cppFiles->createNewChildElement ("ClCompile")->setAttribute ("Include", location);
-                    }
+                    const auto location = owner.rebaseFromProjectFolderToBuildTarget (owner.getVST3HelperProgramSource())
+                                               .toWindowsStyle();
+                    cppFiles->createNewChildElement ("ClCompile")->setAttribute ("Include", location);
                 }
             }
 
@@ -835,17 +844,24 @@ public:
             }
 
             {
-                auto* importGroup = projectXml.createNewChildElement ("ImportGroup");
-                importGroup->setAttribute ("Label", "ExtensionTargets");
-
                 if (owner.shouldAddWebView2Package())
                 {
+                    auto* importGroup = projectXml.createNewChildElement ("ImportGroup");
+                    importGroup->setAttribute ("Label", "ExtensionTargets");
+
                     auto packageTargetsPath = "packages\\" + getWebView2PackageName() + "." + getWebView2PackageVersion()
                                             + "\\build\\native\\" + getWebView2PackageName() + ".targets";
 
                     auto* e = importGroup->createNewChildElement ("Import");
                     e->setAttribute ("Project", packageTargetsPath);
                     e->setAttribute ("Condition", "Exists('" + packageTargetsPath + "')");
+                }
+
+                if (owner.shouldLinkWebView2Statically())
+                {
+                    auto* propertyGroup = projectXml.createNewChildElement ("PropertyGroup");
+                    auto* loaderPref = propertyGroup->createNewChildElement ("WebView2LoaderPreference");
+                    loaderPref->addTextElement ("Static");
                 }
             }
         }
@@ -1024,8 +1040,8 @@ public:
                 bool filesWereAdded = false;
 
                 for (int i = 0; i < projectItem.getNumChildren(); ++i)
-                    if (addFilesToFilter (projectItem.getChild(i),
-                                          (path.isEmpty() ? String() : (path + "\\")) + projectItem.getChild(i).getName(),
+                    if (addFilesToFilter (projectItem.getChild (i),
+                                          (path.isEmpty() ? String() : (path + "\\")) + projectItem.getChild (i).getName(),
                                           cpps, headers, otherFiles, groups))
                         filesWereAdded = true;
 
@@ -1140,6 +1156,14 @@ public:
             return result;
         }
 
+        /*  Like getConfigTargetPath, but expands $(ProjectName) so that build products can be used
+            in other projects where $(ProjectName) will expand to a different value.
+        */
+        String getExpandedConfigTargetPath (const MSVCBuildConfiguration& config) const
+        {
+            return getConfigTargetPath (config).replace ("$(ProjectName)", getOwner().getProjectFileBaseName (getName()));
+        }
+
         String getIntermediatesPath (const MSVCBuildConfiguration& config) const
         {
             auto intDir = (config.getIntermediatesPathString().isNotEmpty() ? config.getIntermediatesPathString()
@@ -1219,7 +1243,7 @@ public:
         //==============================================================================
         build_tools::RelativePath getAAXIconFile() const
         {
-            build_tools::RelativePath aaxSDK (owner.getAAXPathString(), build_tools::RelativePath::projectFolder);
+            const auto aaxSdk = owner.getAAXPathRelative();
             build_tools::RelativePath projectIcon ("icon.ico", build_tools::RelativePath::buildTargetFolder);
 
             if (getOwner().getTargetFolder().getChildFile ("icon.ico").existsAsFile())
@@ -1227,7 +1251,7 @@ public:
                                             getOwner().getProject().getProjectFolder(),
                                             build_tools::RelativePath::projectFolder);
 
-            return aaxSDK.getChildFile ("Utilities").getChildFile ("PlugIn.ico");
+            return aaxSdk.getChildFile ("Utilities").getChildFile ("PlugIn.ico");
         }
 
         String getExtraPostBuildSteps (const MSVCBuildConfiguration& config) const
@@ -1252,10 +1276,10 @@ public:
 
             if (type == AAXPlugIn)
             {
-                const build_tools::RelativePath aaxSDK (owner.getAAXPathString(), build_tools::RelativePath::projectFolder);
-                const build_tools::RelativePath aaxLibsFolder = aaxSDK.getChildFile ("Libs");
-                const build_tools::RelativePath bundleScript  = aaxSDK.getChildFile ("Utilities").getChildFile ("CreatePackage.bat");
-                const build_tools::RelativePath iconFilePath  = getAAXIconFile();
+                const auto aaxSdk = owner.getAAXPathRelative();
+                const auto aaxLibsFolder = aaxSdk.getChildFile ("Libs");
+                const auto bundleScript  = aaxSdk.getChildFile ("Utilities").getChildFile ("CreatePackage.bat");
+                const auto iconFilePath  = getAAXIconFile();
 
                 const auto segments = getAaxBundleStructure (config);
 
@@ -1296,7 +1320,7 @@ public:
 
             if (type == LV2PlugIn)
             {
-                const auto* writerTarget = [&]() -> MSVCTargetBase*
+                const auto* writerTarget = [&]() -> MSVCTarget*
                 {
                     for (auto* target : owner.targets)
                         if (target->type == LV2Helper)
@@ -1305,7 +1329,7 @@ public:
                     return nullptr;
                 }();
 
-                const auto writer = writerTarget->getConfigTargetPath (config)
+                const auto writer = writerTarget->getExpandedConfigTargetPath (config)
                                   + "\\"
                                   + writerTarget->getBinaryNameWithSuffix (config);
 
@@ -1326,7 +1350,7 @@ public:
 
                 const auto manifestScript = [&]() -> String
                 {
-                    const auto* writerTarget = [&]() -> MSVCTargetBase*
+                    const auto* writerTarget = [&]() -> MSVCTarget*
                     {
                         for (auto* target : owner.targets)
                             if (target->type == VST3Helper)
@@ -1338,21 +1362,24 @@ public:
                     if (writerTarget == nullptr)
                         return "";
 
-                    const auto writer = writerTarget->getConfigTargetPath (config)
+                    const auto writer = writerTarget->getExpandedConfigTargetPath (config)
                                       + "\\"
                                       + writerTarget->getBinaryNameWithSuffix (config);
 
                     // moduleinfotool doesn't handle Windows-style path separators properly when computing the bundle name
                     const auto normalisedBundlePath = getOwner().getOutDirFile (config, segments[0]).replace ("\\", "/");
+                    const auto contentsDir = normalisedBundlePath + "\\Contents";
+                    const auto resourceDir = contentsDir + "\\Resources";
 
-                    return "\r\n"
-                         + writer.quoted()
-                         + " -create -version "
-                         + getOwner().project.getVersionString().quoted()
-                         + " -path "
-                         + normalisedBundlePath.quoted()
-                         + " -output "
-                         + (getOwner().getOutDirFile (config, segments[0]) + "\\Contents\\moduleinfo.json").quoted();
+                    return "\r\ndel /s /q " + (contentsDir + "\\moduleinfo.json").quoted() + "\r\n"
+                           "if not exist \"" + resourceDir + "\\\" del /s /q " + resourceDir.quoted() + " && mkdir " + resourceDir.quoted() + "\r\n"
+                          + writer.quoted()
+                          + " -create -version "
+                          + getOwner().project.getVersionString().quoted()
+                          + " -path "
+                          + normalisedBundlePath.quoted()
+                          + " -output "
+                          + (resourceDir + "\\moduleinfo.json").quoted();
                 }();
 
                 const auto pkgScript = copyBuildOutputIntoBundle (segments);
@@ -1377,7 +1404,7 @@ public:
                 std::for_each (segments.begin(), std::prev (segments.end()), [&] (const auto& s)
                 {
                     directory += (directory.isEmpty() ? "" : "\\") + s;
-                    script += "if not exist \"" + directory + "\" mkdir \"" + directory + "\"\r\n";
+                    script += "if not exist \"" + directory + "\\\" del /s /q " + directory.quoted() + " && mkdir " + directory.quoted() + "\r\n";
                 });
 
                 return script;
@@ -1424,7 +1451,7 @@ public:
 
             if (type != SharedCodeTarget && type != LV2Helper && type != VST3Helper)
                 if (auto* shared = getOwner().getSharedCodeTarget())
-                    librarySearchPaths.add (shared->getConfigTargetPath (config));
+                    librarySearchPaths.add (shared->getExpandedConfigTargetPath (config));
 
             return librarySearchPaths;
         }
@@ -1516,7 +1543,6 @@ public:
 
     bool isXcode() const override                            { return false; }
     bool isVisualStudio() const override                     { return true; }
-    bool isCodeBlocks() const override                       { return false; }
     bool isMakefile() const override                         { return false; }
     bool isAndroidStudio() const override                    { return false; }
 
@@ -1639,7 +1665,7 @@ public:
         callForAllSupportedTargets ([this] (build_tools::ProjectType::Target::Type targetType)
                                     {
                                         if (targetType != build_tools::ProjectType::Target::AggregateTarget)
-                                            targets.add (new MSVCTargetBase (targetType, *this));
+                                            targets.add (new MSVCTarget (targetType, *this));
                                     });
 
         // If you hit this assert, you tried to generate a project for an exporter
@@ -1647,7 +1673,7 @@ public:
         jassert (targets.size() > 0);
     }
 
-    const MSVCTargetBase* getSharedCodeTarget() const
+    const MSVCTarget* getSharedCodeTarget() const
     {
         for (auto target : targets)
             if (target->type == build_tools::ProjectType::Target::SharedCodeTarget)
@@ -1691,7 +1717,7 @@ private:
 protected:
     //==============================================================================
     mutable File rcFile, iconFile, packagesConfigFile;
-    OwnedArray<MSVCTargetBase> targets;
+    OwnedArray<MSVCTarget> targets;
 
     ValueTreePropertyWithDefault IPPLibraryValue,
                                  IPP1ALibraryValue,
@@ -1700,12 +1726,18 @@ protected:
                                  targetPlatformVersion,
                                  manifestFileValue;
 
+    String getProjectFileBaseName (const String& target) const
+    {
+        const auto filename = project.getProjectFilenameRootString();
+
+        return filename + (target.isNotEmpty()
+                           ? (String ("_") + target.removeCharacters (" "))
+                           : "");
+    }
+
     File getProjectFile (const String& extension, const String& target) const
     {
-        auto filename = project.getProjectFilenameRootString();
-
-        if (target.isNotEmpty())
-            filename += String ("_") + target.removeCharacters (" ");
+        const auto filename = getProjectFileBaseName (target);
 
         return getTargetFolder().getChildFile (filename).withFileExtension (extension);
     }
@@ -1735,7 +1767,7 @@ protected:
         return getCleanedStringArray (searchPaths);
     }
 
-    String getTargetGuid (MSVCTargetBase::Type type) const
+    String getTargetGuid (MSVCTarget::Type type) const
     {
         for (auto* target : targets)
             if (target != nullptr && target->type == type)
@@ -1747,9 +1779,9 @@ protected:
     //==============================================================================
     void writeProjectDependencies (OutputStream& out) const
     {
-        const auto sharedCodeGuid = getTargetGuid (MSVCTargetBase::SharedCodeTarget);
-        const auto lv2HelperGuid  = getTargetGuid (MSVCTargetBase::LV2Helper);
-        const auto vst3HelperGuid = getTargetGuid (MSVCTargetBase::VST3Helper);
+        const auto sharedCodeGuid = getTargetGuid (MSVCTarget::SharedCodeTarget);
+        const auto lv2HelperGuid  = getTargetGuid (MSVCTarget::LV2Helper);
+        const auto vst3HelperGuid = getTargetGuid (MSVCTarget::VST3Helper);
 
         for (int addingOtherTargets = 0; addingOtherTargets < (sharedCodeGuid.isNotEmpty() ? 2 : 1); ++addingOtherTargets)
         {
@@ -1757,24 +1789,24 @@ protected:
             {
                 if (auto* target = targets[i])
                 {
-                    if (sharedCodeGuid.isEmpty() || (addingOtherTargets != 0) == (target->type != MSVCTargetBase::StandalonePlugIn))
+                    if (sharedCodeGuid.isEmpty() || (addingOtherTargets != 0) == (target->type != MSVCTarget::StandalonePlugIn))
                     {
                         out << "Project(\"{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}\") = \"" << projectName << " - "
                             << target->getName() << "\", \""
                             << target->getVCProjFile().getFileName() << "\", \"" << target->getProjectGuid() << '"' << newLine;
 
                         if (sharedCodeGuid.isNotEmpty()
-                            && target->type != MSVCTargetBase::SharedCodeTarget
-                            && target->type != MSVCTargetBase::LV2Helper
-                            && target->type != MSVCTargetBase::VST3Helper)
+                            && target->type != MSVCTarget::SharedCodeTarget
+                            && target->type != MSVCTarget::LV2Helper
+                            && target->type != MSVCTarget::VST3Helper)
                         {
                             out << "\tProjectSection(ProjectDependencies) = postProject" << newLine
                                 << "\t\t" << sharedCodeGuid << " = " << sharedCodeGuid << newLine;
 
-                            if (target->type == MSVCTargetBase::LV2PlugIn && lv2HelperGuid.isNotEmpty())
+                            if (target->type == MSVCTarget::LV2PlugIn && lv2HelperGuid.isNotEmpty())
                                 out << "\t\t" << lv2HelperGuid << " = " << lv2HelperGuid << newLine;
 
-                            if (target->type == MSVCTargetBase::VST3PlugIn && vst3HelperGuid.isNotEmpty() && project.isVst3ManifestEnabled())
+                            if (target->type == MSVCTarget::VST3PlugIn && vst3HelperGuid.isNotEmpty())
                                 out << "\t\t" << vst3HelperGuid << " = " << vst3HelperGuid << newLine;
 
                             out << "\tEndProjectSection" << newLine;
@@ -1856,11 +1888,18 @@ protected:
     bool shouldAddWebView2Package() const
     {
         return project.getEnabledModules().isModuleEnabled ("juce_gui_extra")
-              && project.isConfigFlagEnabled ("JUCE_USE_WIN_WEBVIEW2", false);
+              && (   project.isConfigFlagEnabled ("JUCE_USE_WIN_WEBVIEW2", false)
+                  || project.isConfigFlagEnabled ("JUCE_USE_WIN_WEBVIEW2_WITH_STATIC_LINKING", false));
+    }
+
+    bool shouldLinkWebView2Statically() const
+    {
+        return project.getEnabledModules().isModuleEnabled ("juce_gui_extra")
+               && project.isConfigFlagEnabled ("JUCE_USE_WIN_WEBVIEW2_WITH_STATIC_LINKING", false);
     }
 
     static String getWebView2PackageName()     { return "Microsoft.Web.WebView2"; }
-    static String getWebView2PackageVersion()  { return "1.0.902.49"; }
+    static String getWebView2PackageVersion()  { return "1.0.1901.177"; }
 
     void createPackagesConfigFile() const
     {
@@ -1893,7 +1932,9 @@ protected:
         const auto name = path.getFileNameWithoutExtension();
 
         return name.equalsIgnoreCase ("include_juce_gui_basics")
-            || name.equalsIgnoreCase ("include_juce_audio_processors");
+            || name.equalsIgnoreCase ("include_juce_audio_processors")
+            || name.equalsIgnoreCase ("include_juce_core")
+            || name.equalsIgnoreCase ("include_juce_graphics");
     }
 
     StringArray getModuleLibs() const
@@ -1910,49 +1951,7 @@ protected:
 };
 
 //==============================================================================
-class MSVCProjectExporterVC2017  : public MSVCProjectExporterBase
-{
-public:
-    MSVCProjectExporterVC2017 (Project& p, const ValueTree& t)
-        : MSVCProjectExporterBase (p, t, getTargetFolderName())
-    {
-        name = getDisplayName();
-
-        targetPlatformVersion.setDefault (getDefaultWindowsTargetPlatformVersion());
-        platformToolsetValue.setDefault (getDefaultToolset());
-    }
-
-    static String getDisplayName()        { return "Visual Studio 2017"; }
-    static String getValueTreeTypeName()  { return "VS2017"; }
-    static String getTargetFolderName()   { return "VisualStudio2017"; }
-
-    Identifier getExporterIdentifier() const override { return getValueTreeTypeName(); }
-
-    int getVisualStudioVersion() const override                      { return 15; }
-    String getSolutionComment() const override                       { return "# Visual Studio 15"; }
-    String getToolsVersion() const override                          { return "15.0"; }
-    String getDefaultToolset() const override                        { return "v141"; }
-    String getDefaultWindowsTargetPlatformVersion() const override   { return "Latest"; }
-
-    static MSVCProjectExporterVC2017* createForSettings (Project& projectToUse, const ValueTree& settingsToUse)
-    {
-        if (settingsToUse.hasType (getValueTreeTypeName()))
-            return new MSVCProjectExporterVC2017 (projectToUse, settingsToUse);
-
-        return nullptr;
-    }
-
-    void createExporterProperties (PropertyListBuilder& props) override
-    {
-        addToolsetProperty (props, { "v140", "v140_xp", "v141", "v141_xp" });
-        MSVCProjectExporterBase::createExporterProperties (props);
-    }
-
-    JUCE_DECLARE_NON_COPYABLE (MSVCProjectExporterVC2017)
-};
-
-//==============================================================================
-class MSVCProjectExporterVC2019  : public MSVCProjectExporterBase
+class MSVCProjectExporterVC2019 final : public MSVCProjectExporterBase
 {
 public:
     MSVCProjectExporterVC2019 (Project& p, const ValueTree& t)
@@ -1960,8 +1959,8 @@ public:
     {
         name = getDisplayName();
 
-        targetPlatformVersion.setDefault (getDefaultWindowsTargetPlatformVersion());
-        platformToolsetValue.setDefault (getDefaultToolset());
+        targetPlatformVersion.setDefault (defaultTargetPlatform);
+        platformToolsetValue.setDefault (defaultToolset);
     }
 
     static String getDisplayName()        { return "Visual Studio 2019"; }
@@ -1973,8 +1972,8 @@ public:
     int getVisualStudioVersion() const override                      { return 16; }
     String getSolutionComment() const override                       { return "# Visual Studio Version 16"; }
     String getToolsVersion() const override                          { return "16.0"; }
-    String getDefaultToolset() const override                        { return "v142"; }
-    String getDefaultWindowsTargetPlatformVersion() const override   { return "10.0"; }
+    String getDefaultToolset() const override                        { return defaultToolset; }
+    String getDefaultWindowsTargetPlatformVersion() const override   { return defaultTargetPlatform; }
 
     static MSVCProjectExporterVC2019* createForSettings (Project& projectToUse, const ValueTree& settingsToUse)
     {
@@ -1990,11 +1989,14 @@ public:
         MSVCProjectExporterBase::createExporterProperties (props);
     }
 
+private:
+    const String defaultToolset { "v142" }, defaultTargetPlatform { "10.0" };
+
     JUCE_DECLARE_NON_COPYABLE (MSVCProjectExporterVC2019)
 };
 
 //==============================================================================
-class MSVCProjectExporterVC2022  : public MSVCProjectExporterBase
+class MSVCProjectExporterVC2022 final : public MSVCProjectExporterBase
 {
 public:
     MSVCProjectExporterVC2022 (Project& p, const ValueTree& t)
@@ -2002,8 +2004,8 @@ public:
     {
         name = getDisplayName();
 
-        targetPlatformVersion.setDefault (getDefaultWindowsTargetPlatformVersion());
-        platformToolsetValue.setDefault (getDefaultToolset());
+        targetPlatformVersion.setDefault (defaultTargetPlatform);
+        platformToolsetValue.setDefault (defaultToolset);
     }
 
     static String getDisplayName()        { return "Visual Studio 2022"; }
@@ -2015,8 +2017,8 @@ public:
     int getVisualStudioVersion() const override                      { return 17; }
     String getSolutionComment() const override                       { return "# Visual Studio Version 17"; }
     String getToolsVersion() const override                          { return "17.0"; }
-    String getDefaultToolset() const override                        { return "v143"; }
-    String getDefaultWindowsTargetPlatformVersion() const override   { return "10.0"; }
+    String getDefaultToolset() const override                        { return defaultToolset; }
+    String getDefaultWindowsTargetPlatformVersion() const override   { return defaultTargetPlatform; }
 
     static MSVCProjectExporterVC2022* createForSettings (Project& projectToUse, const ValueTree& settingsToUse)
     {
@@ -2031,6 +2033,9 @@ public:
         addToolsetProperty (props, { "v140", "v140_xp", "v141", "v141_xp", "v142", "v143", "ClangCL" });
         MSVCProjectExporterBase::createExporterProperties (props);
     }
+
+private:
+    const String defaultToolset { "v143" }, defaultTargetPlatform { "10.0" };
 
     JUCE_DECLARE_NON_COPYABLE (MSVCProjectExporterVC2022)
 };
